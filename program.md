@@ -1,5 +1,5 @@
 ## Cost constraints
-- Each run has a $50 hard limit (enforced automatically — over-budget 
+- Each run has a $50 hard limit
   runs get error_rate 999 and are always reverted)
 - You have 10 total experiments
 - Total budget across all experiments is capped

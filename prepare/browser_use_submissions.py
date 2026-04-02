@@ -12,14 +12,11 @@ import random
 from contextlib import contextmanager
 import requests
 from dotenv import load_dotenv
-from browser_use_sdk import AsyncBrowserUse # pyright: ignore[reportMissingImports]
-
 load_dotenv()
 raw_api_key: Optional[str] = os.getenv("BROWSER_USE_API_KEY")
 if raw_api_key is None or not raw_api_key.strip():
     raise RuntimeError("BROWSER_USE_API_KEY not found in environment")
 api_key: str = raw_api_key.strip()
-client = AsyncBrowserUse()
 
 # Configurable server base URL (public endpoints, no auth required)
 BASE_URL ="https://wes-wgs-pa-app-u2c8s.ondigitalocean.app"

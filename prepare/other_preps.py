@@ -9,6 +9,9 @@ from typing import Dict, List, Optional
 from pathlib import Path
 import pytz
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 API_BASE = os.getenv("BROWSER_USE_API_BASE", "https://api.browser-use.com/api/v2").rstrip("/")
 raw_api_key = os.getenv("BROWSER_USE_API_KEY")
@@ -68,21 +71,21 @@ def create_jobs(n, llm: str, input_path: str):
 
 # Post-submission processing functions
 def get_task(task_id: str) -> Dict:
-    resp = requests.get(f"{API_BASE}/{task_id}", headers=_api_headers(), timeout=60)
+    base_api = "https://api.browser-use.com/api/v2/tasks"
+    resp = requests.get(f"{base_api}/{task_id}", headers=_api_headers(), timeout=60)
     resp.raise_for_status()
     result = resp.json()
     metadata = result.get("metadata", {})
     return {
-         "task_id": task_id,
-         "llm": result.get("llm"),
-         "isSuccess": result.get("isSuccess"),
-         "output": result.get("output"),
-         "cost": result.get("cost"),
-         "duration": result.get("duration"),
-         "number_of_steps": len(result.get("steps", [])),
-         "patient_id": metadata.get("patient_id"),
-         "sample_type": metadata.get("sample_type"),
-         "patient_name": metadata.get("patient_name"),
+        "task_id": task_id,
+        "patient_id": metadata.get("patient_id"),
+        "sample_type": metadata.get("sample_type"),
+        "patient_name": metadata.get("patient_name"),
+        "llm": result.get("llm"),
+        "isSuccess": result.get("isSuccess"),
+        "cost": result.get("cost"),
+        "number_of_steps": len(result.get("steps", [])),
+        "output": result.get("output")
     }
 
 def get_tasks(start_et: str, end_et: str):
@@ -173,7 +176,7 @@ def get_tasks(start_et: str, end_et: str):
     return tasks_out
 
 def get_experiement_cost(experiment_results: list[dict]):
-    total_cost = sum(task.get("cost", 0) for task in experiment_results)
+    total_cost = sum(float(task.get("cost") or 0) for task in experiment_results)
     return total_cost
 
 # Evaluation functions
