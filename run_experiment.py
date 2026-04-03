@@ -15,7 +15,7 @@ root_dir = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description="Run experiment")
 parser.add_argument("--input", default=str(root_dir / "data" / "all_samples.json"), help="Input samples JSON path")
 parser.add_argument("--submitted-dir", default=str(root_dir / "data" / "submissions"), help="Output directory for downloaded submissions")
-parser.add_argument("--workers", type=int, default=25, help="Max concurrent workers")
+parser.add_argument("--workers", type=int, default=50, help="Max concurrent workers")
 parser.add_argument("--llm", default=LLM, help="LLM model to run")
 parser.add_argument("--max-steps", type=int, default=max_steps, help="Maximum steps per browser task")
 parser.add_argument("--batch-input-path", default=str(root_dir / "data" / "batch_input.jsonl"), help="Path to batch input JSON file")
@@ -23,7 +23,7 @@ parser.add_argument("--tasks-output-path", default=str(root_dir / "data" / "task
 parser.add_argument("--experiment-output-dir", default=str(root_dir / "data" / "experiment_results.tsv"), help="Output directory for experiment results")
 args = parser.parse_args()
 
-BASE_URL = "https://wes-wgs-pa-app-u2c8s.ondigitalocean.app/login"
+BASE_URL = "https://wes-wgs-pa-app-u2c8s.ondigitalocean.app"
 
 def run_parallel_jobs(jobs: List[Dict], workers: int, max_steps: int, output_dir: Path) -> List[Dict]:
     """Run a list of jobs in parallel. Each job: {patient_name, patient_id, sample_type, llm}."""
@@ -63,9 +63,9 @@ def write_experiment_reports(task_outcomes: List[Dict], output_path: Path, llm: 
     total_cost = sum(float(task.get("cost") or 0) for task in task_outcomes)
     results["status"] = "PASSED"
     results["failed_reason"] = ""
-    if total_cost > 50:
+    if total_cost > 20:
         results["status"] = "FAILED"
-        results["failed_reason"] = f"Total cost for this experiment is more than 50: {total_cost:.2f}"
+        results["failed_reason"] = f"Total cost for this experiment is more than 20: {total_cost:.2f}"
     if results["CompletionRate"] < 0.7:
         results["status"] = "FAILED"
         if results["failed_reason"]:
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     submission_path = Path(args.submitted_dir)
     
     # Load a small sample patient data (random selection)
-    jobs = create_jobs(n=7, llm=args.llm, input_path=args.input)
+    jobs = create_jobs(n=1, llm=args.llm, input_path=args.input)
 
     # Run submission on browser use
     submission_results = run_parallel_jobs(

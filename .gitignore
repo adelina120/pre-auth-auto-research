@@ -1,2 +1,9 @@
 # Ignore environment variable files
 .env
+
+data/submissions/
+data/batch_input.jsonl
+
+
+__pycache__/
+prepare/__pycache__/
