@@ -3,6 +3,8 @@
 
 data/submissions/
 data/batch_input.jsonl
+data/tasks_output.json
+data/experiment_results.tsv
 
 
 __pycache__/

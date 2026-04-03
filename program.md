@@ -44,97 +44,69 @@ The browser use agent will return a output message for each task which is then p
    - `correct_withholding`: **applies to type 2a, 2b, 2c, 3b, 4 only**, set to *true* ONLY if the agent correctly stops the form submission and identifies the intentionally designed issues; otherwise *false*
    - `non_groundtruth_withholding`: the agent halts submission due to issues not intentionally designed
 
-The primary metric is `error_rate` - the lower the better. 
+The primary metric is `error_rate` - the lower the better.
+`error_rate` is calculated over all **completed** tasks only:
+```
+error_rate = (negative_error_counts + positive_error_counts) / completed_count
+```
 
-If `completion_rate` drops below 0.7, the run is automatically rejected (scored as 999). Do not write prompts that cause excessive browser steps, retries, or navigation complexity.
+- **negative_error_counts**: tasks of type 2a, 2b, 2c, 3b, or 4 where `correct_withholding` is `false` — the agent should have withheld and identify the designed issues but did not do so correctly.
+- **positives_error_counts**: tasks of type 1 or 3a where `non_groundtruth_withholding` is `true` — the agent withheld a valid profile it should have submitted.
+- **completed_count**: number of tasks where `completed` is `true`.
+
+Incomplete tasks (`completed = false`) are excluded from both the numerator and denominator — they are tracked separately via `completion_rate` and do not count as errors.
 
 ## Constraints
-- **Completion**: if the completion rate is
-- **Per-run limit: $50.** Enforced automatically by `run_experiment.py`. Over-budget runs receive `submission_error_rate: 999` and are always reverted. Avoid changes that inflate token count or browser step count. A typical successful run costs $25–35.
-- **Total experiment limit: 10 runs** (including baseline). After experiment 10, stop and write a summary.
-- **Cumulative budget** is tracked in `results.tsv`. If remaining budget cannot cover a worst-case $50 run, `run_experiment.py` will block the experiment from starting.
+An experiment is marked **FAILED** if either of the following conditions is met:
+- **Completion rate** falls below 70% — too many tasks did not complete for the results to be reliable.
+- **Total cost** exceeds $20 — the run is over budget.
 
-Write efficient prompts. The browser agent does not need elaborate multi-step verification or retry loops to perform well.
+FAILED experiments are still recorded in `data/experiment_results.tsv` but their `status` field will be `FAILED` with a `failed_reason` describing which condition triggered it. Changes from a FAILED run should be reverted.
 
 ## Experiment Loop
-
 ### Setup (once, before first experiment)
-
 1. Read this file (`program.md`) for full context.
-2. Read the in-scope files: `agent_config.py`, `prepare.py`, `run_experiment.py`, `make_submissions.py`.
-3. Verify data exists: check that `data/generated/groundtruth.json` and `data/generated/eval_set.json` are present.
-4. If `results.tsv` does not exist, create it with the header row only.
+2. Read the in-scope files: `agent_edit.py`, `prepare/other_preps.py`, `prepare/browser_use_submission.py`, `prepare/process_browser_use\_output.py`, `run_experiment.py`.
+3. Verify data exists: check that `data/all_samples.json` is present.
+4. For each experiment run, the *raw data* from Browser Use and OpanAI processing will be recorded and APPENDED to data/tasks_output.json for reference, with experiment index labelled; all the metrics / measurements will be directly summarized into the file data/experiment_results.tsv 
 
 ### Baseline (experiment 0)
-
-Run the current `agent_config.py` without changes to establish a baseline score.
+Run the current `agent_edit.py` without changes to establish a baseline score.
 
 ```bash
 python run_experiment.py > run.log 2>&1
 ```
 
-Read the results and record them as experiment 0 in `results.tsv`.
-
 ### Each subsequent experiment
-
-1. **Review history.** Read `results.tsv` to see what has been tried and what the current best score is.
+1. **Review history.** Read `data/experiment_results.tsv` to see what has been tried and what the current best score is. Identify what's improved and what goes wrong.
 2. **Diagnose.** Read the most recent `run.log` in full. Focus on:
    - Per-type breakdown: which sample types have the highest error rates?
    - Error details: what specific mistakes did the agent make and why?
-   - Per-field accuracy: which form fields are filled incorrectly?
-   - Cost: is the run near the $50 limit?
 3. **Hypothesize.** Based on the diagnostics, form a specific hypothesis about what change to `agent_config.py` would improve the score. Write down your hypothesis before making changes.
-4. **Edit.** Make a focused change to `agent_config.py`. Change one thing at a time when possible — it makes the signal clearer. Large multi-variable changes make it hard to attribute improvement or regression.
+4. **Edit.** Make focused change to `agent_edit.py`, and write down explanation for why making these changes.
 5. **Run.**
    ```bash
    python run_experiment.py > run.log 2>&1
    ```
    Redirect everything. Do NOT use tee or let output flood your context.
+
 6. **Read results.**
    ```bash
    grep "^submission_error_rate:\|^fpr:\|^fnr:\|^completion_rate:\|^run_cost:\|^status:" run.log
    ```
-   If grep output is empty, the run crashed. Run `tail -n 50 run.log` for the stack trace and attempt a fix. If you cannot resolve it after a few attempts, revert and try a different approach.
-7. **Record.** Append the result to `results.tsv` with all columns filled except `kept`.
-8. **Keep or revert.**
-   - If `submission_error_rate` improved (lower than current best) AND `status` is `OK`: run `git add agent_config.py && git commit -m "exp N: <tag>"`. Update the `kept` column to `yes`.
-   - If `submission_error_rate` did not improve OR `status` is `REJECTED`: run `git checkout -- agent_config.py`. Update the `kept` column to `no`.
-9. **Repeat** from step 1.
 
-### results.tsv Format
+7. **Keep or revert.**
+   - In the data/experiment_results.tsv, add a column called `kept`. If `ErrorRate` improved (lower than current best) AND `status` is `OK`: run `git add agent_edit.py && git commit -m "exp N: <tag>"`. Set the `kept` column to `yes`.
+   - If `ErrorRate` did not improve OR `status` is `FAILED`: run `git checkout -- agent_config.py`. Update the `kept` column to `no`.
 
-```
-exp	tag	submission_error_rate	fpr	fnr	completion_rate	cost	status	kept
-0	baseline	0.38	0.25	0.40	0.92	32.10	OK	yes
-```
-
-Do NOT commit `results.tsv` to git. Leave it untracked so that git resets do not erase experiment history.
-
-## Known Failure Modes from Prior Experiments
-
-The following patterns were identified from 700 prior runs across 3 LLMs. Use them to prioritize your experiments.
-
-### Decision Errors
-
-- **Type 4 (colliding names)** is the hardest. Agents frequently submit without noticing the name collision. The duplicate name often appears in a separate profile within the same batch, and agents fail to cross-reference.
-- **Type 2a (subscriber age)** is commonly missed. Agents accept the subscriber information at face value without computing the age difference. Explicit instructions to calculate and verify the age gap help.
-- **Type 2b (date ordering)** is sometimes caught, sometimes missed. Agents that are instructed to explicitly compare dates before submitting perform better.
-- **Type 2c (missing collection date)** is the easiest "stop" type. Most agents catch the missing required field.
-- **Type 3b (irrelevant clinical info)** is caught by most agents, but some over-index on the presence of medical terminology and submit anyway.
-- **Types 1 and 3a (valid, should submit)** sometimes trigger false negatives. Agents that are overly cautious about stop criteria refuse to submit legitimate profiles. This is especially common when the prompt has very aggressive withholding instructions.
+8. **Repeat** from step 1.
 
 ## Stopping Criteria
-
-Stop when ANY of these conditions is met:
-1. You have run 10 total experiments (including baseline).
-2. Five consecutive experiments produced no improvement.
-3. `submission_error_rate` drops below 0.05.
-4. Cumulative cost makes it impossible to start another run.
+You have a max of 10 total experiments to run (including baseline). Stop after 10 experiments.
 
 ## Final Summary
-
 After stopping, write a summary report to stdout:
-1. **Best result:** which experiment achieved the lowest `submission_error_rate` and what was the score.
+1. **Best result:** which experiment achieved the lowest `ErrorRate` and what was the score.
 2. **What worked:** list the changes that were kept and roughly how much each improved the score.
 3. **What didn't work:** list reverted experiments and why they failed.
 4. **Remaining failure modes:** which sample types or fields still have the highest error rates.
