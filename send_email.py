@@ -1,27 +1,20 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
+
+NTFY_TOPIC = "autoResearch-BrowserAgent"
 
 def send_experiment_email(subject, body):
-    gmail_user = "rkk.bme@gmail.com"
-    gmail_password = "vuponvhjyjbkzkni"
-    
-    recipients = [
-        "rkk.bme@gmail.com",
-        "adelinanie120@gmail.com"
-    ]
-    
-    msg = MIMEMultipart()
-    msg['From'] = gmail_user
-    msg['To'] = ", ".join(recipients)
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-    
     try:
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-        server.login(gmail_user, gmail_password)
-        server.sendmail(gmail_user, recipients, msg.as_string())
-        server.quit()
-        print(f"Email sent: {subject}")
+        requests.post(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            data=f"{subject}\n\n{body}".encode("utf-8"),
+            headers={"Title": subject}
+        )
+        print(f"Notification sent: {subject}")
     except Exception as e:
-        print(f"Email failed: {e}")
+        print(f"Notification failed: {e}")
+
+if __name__ == "__main__":
+    send_experiment_email(
+        "Test - pre-auth autoresearch",
+        "Notifications working on DO droplet!"
+    )
