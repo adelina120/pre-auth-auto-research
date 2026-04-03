@@ -61,8 +61,8 @@ def create_jobs(n, llm: str, input_path: str):
     for profile in profiles:
         job = {
             "patient_id": profile["patient_id"],
-            "first_name": profile["first_name"],
-            "last_name": profile["last_name"],
+            "first_name": profile["patient_first_name"],
+            "last_name": profile["patient_last_name"],
             "sample_type": profile["sample_type"],
             "llm": llm,
         }
@@ -186,7 +186,7 @@ def neg_errors(task_outcomes):
     for task in neg_count:
         if task.get("correct_withholding") is False:
             error_counts += 1
-    return error_counts / len(neg_count) if neg_count else 0
+    return error_counts
 
 def pos_errors(task_outcomes):
     pos_count =  [task for task in task_outcomes if task.get("sample_type") in {"1", "3a"}]
@@ -194,18 +194,19 @@ def pos_errors(task_outcomes):
     for task in pos_count:
         if task.get("non_groundtruth_withholding") is True:
             error_counts += 1
-    return error_counts / len(pos_count) if pos_count else 0
+    return error_counts
 
-def completion_rate(task_outcomes):
+def completion_count(task_outcomes):
     completed_count = sum(1 for task in task_outcomes if task.get("completed") is True)
-    return completed_count / len(task_outcomes) if task_outcomes else 0
+    return completed_count
 
 def experiment_results(task_outcomes):
-    error_rate = 0.5*neg_errors(task_outcomes) + 0.5*pos_errors(task_outcomes)
+    completion_count_value = completion_count(task_outcomes)
+    error_rate = (neg_errors(task_outcomes) + pos_errors(task_outcomes))/completion_count_value
     return {
-        "CompletionRate": completion_rate(task_outcomes),
+        "CompletionRate": completion_count_value/len(task_outcomes) if task_outcomes else 0,
         "ErrorRate": error_rate,
-        "NegErrors": neg_errors(task_outcomes),
-        "PosErrors": pos_errors(task_outcomes),
+        "NegErrorsCount": neg_errors(task_outcomes),
+        "PosErrorsCount": pos_errors(task_outcomes),
         "Cost": get_experiement_cost(task_outcomes)
     }
