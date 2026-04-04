@@ -99,6 +99,15 @@ python run_experiment.py > run.log 2>&1
    - In the data/experiment_results.tsv, add a column called `kept`. If `ErrorRate` improved (lower than current best) AND `status` is `OK`: run `git add agent_edit.py && git commit -m "exp N: <tag>"`. Set the `kept` column to `yes`.
    - If `ErrorRate` did not improve OR `status` is `FAILED`: run `git checkout -- agent_config.py`. Update the `kept` column to `no`.
 
+8. After updating to experiment_results.tsv, send an email summary by running:
+`python3.11 send_email.py`
+Update the subject and body each time to include:
+- Experiment number/ git commit id
+- Parameter changed with old->new value (LLM, max_steps, or prompt change)
+- CompletionRate, ErrorRate, Cost
+- Status (PASSED/FAILED)
+Example subject: "[pre-auth] Exp 2: LLM gemini-flash->gpt-4o | CompletionRate=85% | ErrorRate=60% | PASSED"
+
 8. **Repeat** from step 1.
 
 ## Stopping Criteria
